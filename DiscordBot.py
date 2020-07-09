@@ -1,4 +1,4 @@
 #rewrite
-class clientCommands: {
+class clientCommands():
     def _init_:
         
