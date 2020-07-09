@@ -14,19 +14,28 @@ print('''
 import asyncio
 import discord
 import time
+import inspect
+#---Local Functions---
+async def controlPanel(self):
+    loop = True
+    while loop == True:
+        choice = input(" >>> ")
+        if choice.split("(", 1)[0] in dir(clientCommands):
+            if "(" in choice:
+                func = getattr(clientCommands, choice.split("(",1)[0])
+                execPrefix = ""
+                if inspect.iscoroutinefunction(func):
+                    execPrefix = "await "
+                print("Running Command: " + choice)
+                exec("async def mainCode():\n\t" + execPrefix + "self." + choice.replace("self", "").replace("self, ", ""), globals())
+                loop = False
 #---Client Commands---
 class clientCommands():
     def __init__(self, client):
         self.client = client
-    def controlPanel(self):
-        loop = True
-        while loop == True:
-            choice = input(" >>> ")
-            if choice in dir(clientCommands):
-                func = getattr(clientCommands, choice)
-                func(self)
-                print("---done---")
-    #Control Commands
+    async def sendMessage(self, channelID):
+        channel = self.client.get_channel(int(channelID))
+        await channel.send("hello")
     def autoListen(self):
         @self.client.event
         async def on_message(message):
@@ -41,7 +50,7 @@ async def on_ready():
     print("Logged Into: " + str(client.user.name))
     print("Login Time: " + str(round(t1-t0, 1)) + "s")
     print("\n------\n")
-    bot.controlPanel()
+    await controlPanel(bot)
 #----Live Loop---
 TOKEN = input("Token   > ")
 TOKEN = TOKEN.strip('''"''')
