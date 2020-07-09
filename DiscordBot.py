@@ -1,1 +1,2 @@
 #rewrite
+print("hi")
