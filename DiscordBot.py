@@ -1,2 +1,4 @@
 #rewrite
-print("hi")
+class clientCommands: {
+    def _init_:
+        
