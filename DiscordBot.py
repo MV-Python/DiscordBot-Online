@@ -1,4 +1,14 @@
 #rewrite
+print('''
+   _____________                  ___________
+  /   __________\               /_________   \\
+ |   /███████████████████████████████████ |  |
+ |  | █▄─▄▄▀█▄─▄█─▄▄▄▄█─▄▄▄─█▄─▄▄─█▄─█─▄█ |  |
+(o  o)██─██─██─██▄▄▄▄─█─███▀██─▄▄▄██▄─▄██ |  |
+ \__/ ▀▄▄▄▄▀▀▄▄▄▀▄▄▄▄▄▀▄▄▄▄▄▀▄▄▄▀▀▀▀▄▄▄▀▀/  /
+  |               \__________/ _________/  /
+  ^     Viper 2.0  \ \ \ \ \ \ \__________/
+''')
 
 #---Imports---
 import asyncio
@@ -12,21 +22,21 @@ class clientCommands():
     def __init__(self, client):
         self.client = client
 
-    def task1(self):
-        print("hi")
-
-TOKEN = input("Token > ")
+TOKEN = input("Token   > ")
 TOKEN = TOKEN.strip('''"''')
 BOT = input("Bot T/F > ")
-if BOT in ["true", "True", "t", "T"]:
-    BOT = True
 if BOT in ["false", "False", "f", "F"]:
     BOT = False
+else:
+    BOT = True
 bot = clientCommands(client = client)
 
-@bot.client.event
+@client.event
 async def on_ready():
-    bot.task1()
+    t1 = time.time()
+    print("ready")
+    print(str(round(t1-t0, 1)) + "s Login Time")
 
 print("loading...")
-bot.client.run(TOKEN, bot=BOT)
+t0 = time.time()
+client.run(TOKEN, bot=BOT)
