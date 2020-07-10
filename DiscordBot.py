@@ -15,9 +15,10 @@ import asyncio
 import discord
 import time
 import inspect
+import subprocess
 #---Local Functions---
 async def controlPanel(self):
-    loop = True
+    global loop
     while loop == True:
         choice = input(" >>> ")
         if choice == "help":
@@ -26,6 +27,8 @@ async def controlPanel(self):
                 if not command.startswith("__"):
                     if command != "help":
                         print(command + str(inspect.signature(getattr(clientCommands, command))).replace("self, ", "").replace("self", ""))
+        if choice == "run":
+            loop = False
         if choice.split("(", 1)[0] in dir(clientCommands):
             if "(" in choice:
                 func = getattr(clientCommands, choice.split("(",1)[0])
@@ -33,9 +36,8 @@ async def controlPanel(self):
                 if inspect.iscoroutinefunction(func):
                     execPrefix = "await "
                 print("Running Command: " + choice + "...\n")
-                exec("async def mainCode(self):\n\t" + execPrefix + "self." + choice.replace("self, ", "").replace("self", ""), globals())
+                exec("async def mainCode(self):\n\ttry:\n\t\t" + execPrefix + "self." + choice.replace("self, ", "").replace("self", "") + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e))", globals())
                 await mainCode(self)
-                loop = False
 #---Client Commands---
 class clientCommands():
     def __init__(self, client):
@@ -45,21 +47,28 @@ class clientCommands():
         await channel.send(message)
         print("Message sent")
     def autoListen(self):
+        global loop
         @self.client.event
         async def on_message(message):
             print(message.author.name + " > " + message.content)
+        loop = False
 client = discord.Client()
 bot = clientCommands(client = client)
 #---Running---
 @bot.client.event
 async def on_ready():
+    global loop
     t1 = time.time()
     print("\n------")
     print("Logged Into: " + str(client.user.name))
     print("Login Time: " + str(round(t1-t0, 1)) + "s")
     print("------\n")
-    while True:
+    loop = True
+    while loop == True:
         await controlPanel(bot)
+    @bot.client.event
+    async def on_ready():
+        pass
 #----Live Loop---
 TOKEN = input("Token   > ")
 TOKEN = TOKEN.strip('''"''')
