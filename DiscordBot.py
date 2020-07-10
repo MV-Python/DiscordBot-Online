@@ -16,7 +16,32 @@ import discord
 import time
 import inspect
 import subprocess
+import os
 #---Local Functions---
+_file_ = str(os.path.dirname(os.path.abspath(__file__)))
+def UpdateSetting(variable, value):
+    updated = False
+    counter = 0
+    if os.path.isfile(_file_+"/Settings"):
+        SettingsList = open(_file_+"/Settings", "r").read().split("\n")
+        for i in SettingsList:
+            if i.startswith(variable):
+                SettingsList[counter] = variable + " = "  + value
+                updated = True
+            counter += 1
+        if not updated:
+            SettingsList.append(variable + " = "  + value)
+        open(_file_+"/Settings", "w").write("\n".join(SettingsList))
+    else:
+        open(_file_+"/Settings", "w").write(variable + " = "  + value)
+def GetSetting(variable):
+    #print(open(_file_+"/Settings", "r").read().split("\n"))
+    if not os.path.isfile(_file_+"/Settings"):
+        return None
+    for i in open(_file_+"/Settings", "r").read().split("\n"):
+        if i.startswith(variable):
+            return i.split(" = ")[1]
+    return None
 async def controlPanel(self):
     global loop
     while loop == True:
@@ -70,13 +95,20 @@ async def on_ready():
     async def on_ready():
         pass
 #----Live Loop---
-TOKEN = input("Token   > ")
-TOKEN = TOKEN.strip('''"''')
-BOT = input("Bot T/F > ")
-if BOT in ["false", "False", "f", "F"]:
-    BOT = False
-else:
-    BOT = True
+TOKEN = None
+BOT = None
+if GetSetting("autoRunCode") == "True":
+    mainText = open(_file_+"/Saved_Code", "r").read()
+if GetSetting("REPL") == "True":
+    UpdateSetting("autoRunCode", "True")
+    TOKEN = os.environ.get("TOKEN")
+if GetSetting("REPL") == "True":
+    UpdateSetting("autoRunCode", "True")
+    BOT = os.environ.get("BOT")
+if TOKEN == None: TOKEN = input("Token   > ").strip('''"''')
+if BOT == None: BOT = input("Bot T/F > ")
+if BOT in ["false", "False", "f", "F"]: BOT = False
+else: BOT = True
 
 print("loading...")
 t0 = time.time()
