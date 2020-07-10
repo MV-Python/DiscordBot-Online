@@ -27,8 +27,10 @@ async def controlPanel(self):
                 if inspect.iscoroutinefunction(func):
                     execPrefix = "await "
                 print("Running Command: " + choice)
-                exec("async def mainCode():\n\t" + execPrefix + "self." + choice.replace("self", "").replace("self, ", ""), globals())
                 loop = False
+                print(("async def mainCode(self):\n\t" + execPrefix + "self." + choice.replace("self", "").replace("self, ", "")))
+                exec("async def mainCode(self):\n\t" + execPrefix + "self." + choice.replace("self", "").replace("self, ", ""), globals())
+                await mainCode(self)
 #---Client Commands---
 class clientCommands():
     def __init__(self, client):
