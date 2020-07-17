@@ -1,0 +1,2 @@
+bot.autoListen()
+bot.sendMessage(535550762655285271, "hello, test message!")

@@ -1,4 +1,5 @@
 #rewrite
+
 print('''
    _____________                 ___________
   /   ________   \              /   _____   \\
@@ -17,52 +18,117 @@ import time
 import inspect
 import subprocess
 import os
+#---Settings---
+'''Path where setting and saved code files are saved, default is same directory'''
+saveFilePath = str(os.path.dirname(os.path.abspath(__file__)))
 #---Local Functions---
-_file_ = str(os.path.dirname(os.path.abspath(__file__)))
-def UpdateSetting(variable, value):
-    updated = False
-    counter = 0
-    if os.path.isfile(_file_+"/Settings"):
-        SettingsList = open(_file_+"/Settings", "r").read().split("\n")
-        for i in SettingsList:
-            if i.startswith(variable):
-                SettingsList[counter] = variable + " = "  + value
-                updated = True
-            counter += 1
-        if not updated:
-            SettingsList.append(variable + " = "  + value)
-        open(_file_+"/Settings", "w").write("\n".join(SettingsList))
-    else:
-        open(_file_+"/Settings", "w").write(variable + " = "  + value)
-def GetSetting(variable):
-    #print(open(_file_+"/Settings", "r").read().split("\n"))
-    if not os.path.isfile(_file_+"/Settings"):
-        return None
-    for i in open(_file_+"/Settings", "r").read().split("\n"):
-        if i.startswith(variable):
-            return i.split(" = ")[1]
-    return None
-async def controlPanel(self):
+async def controlPanel(botSelf, conSelf=None, *args, **kwargs):
     global loop
     while loop == True:
         choice = input(" >>> ")
         if choice == "help":
-            print("Command List\n------------")
+            print("Client Commands\n------------")
             for command in dir(clientCommands):
                 if not command.startswith("__"):
-                    if command != "help":
-                        print(command + str(inspect.signature(getattr(clientCommands, command))).replace("self, ", "").replace("self", ""))
-        if choice == "run":
+                    print(command + str(inspect.signature(getattr(clientCommands, command))).replace("self, ", "").replace("self", ""))
+            print("\nLocal Commands\n------------")
+            for command in dir(localCommands):
+                if not command.startswith("__"):
+                    print(command + str(inspect.signature(getattr(localCommands, command))).replace("self, ", "").replace("self", ""))
+        elif choice == "end":
             loop = False
-        if choice.split("(", 1)[0] in dir(clientCommands):
+        elif choice == "saves":
+            for file in os.listdir(saveFilePath):
+                if file.startswith("save-"):
+                    if file.endswith(".txt"):
+                        print(file.split(".")[0].split("save-")[1])
+        elif choice.split("(", 1)[0] in dir(localCommands):
             if "(" in choice:
+                self = conSelf
+                func = getattr(localCommands, choice.split("(",1)[0])
+                execPrefix = ""
+                if inspect.iscoroutinefunction(func):
+                    execPrefix = "await "
+                print("Running Command: " + choice.split("(", 1)[0] + "...\n")
+                try:
+                    exec("async def mainCode(self):\n\ttry:\n\t\t" + execPrefix + "self." + choice.replace("self, ", "").replace("self", "") + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e))", globals())
+                    await mainCode(self)
+                except Exception as e:
+                    print(str(e))
+
+        elif choice.split("(", 1)[0] in dir(clientCommands):
+            if "(" in choice:
+                self = botSelf
                 func = getattr(clientCommands, choice.split("(",1)[0])
                 execPrefix = ""
                 if inspect.iscoroutinefunction(func):
                     execPrefix = "await "
-                print("Running Command: " + choice + "...\n")
+                print("Running Command: " + choice.split("(", 1)[0] + "...\n")
                 exec("async def mainCode(self):\n\ttry:\n\t\t" + execPrefix + "self." + choice.replace("self, ", "").replace("self", "") + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e))", globals())
                 await mainCode(self)
+        else:
+            exec("async def mainCode():\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e))", globals())
+            await mainCode()
+#---Local Commands---
+class localCommands():
+    def __init__(self, _file_):
+        self._file_ = _file_
+    def UpdateSetting(self, variable, value):
+        updated = False
+        counter = 0
+        if os.path.isfile(self._file_+"/Settings"):
+            SettingsList = open(self._file_+"/Settings", "r").read().split("\n")
+            for i in SettingsList:
+                if i.startswith(variable):
+                    SettingsList[counter] = variable + " = "  + value
+                    updated = True
+                counter += 1
+            if not updated:
+                SettingsList.append(variable + " = "  + value)
+            open(self._file_+"/Settings", "w").write("\n".join(SettingsList))
+        else:
+            open(self._file_+"/Settings", "w").write(variable + " = "  + value)
+    def GetSetting(self, variable, output=False):
+        if not os.path.isfile(self._file_+"/Settings"):
+            if output == True:
+                print("None")
+            return None
+        for i in open(self._file_+"/Settings", "r").read().split("\n"):
+            if i.startswith(variable):
+                value = i.split("=")[1]
+                if output == True:
+                    if value == None:
+                        print("None")
+                    else:
+                        print(value)
+                if value == "True":
+                    value = True
+                if value == "False":
+                    value = False
+                return value
+        if output == True:
+            print("None")
+        return None
+    def save(self, saveName, code=None):
+        if code != None:
+            open(self._file_+"/save-"+saveName+".txt", "w").write(code)
+        else:
+            open(self._file_+"/save-"+saveName+".txt", "w").write("")
+    def openSave(self, saveName):
+        os.system(self._file_+"/save-"+saveName+".txt")
+    async def loadSave(self, saveName):
+        counter = 0
+        print("Running File: " + saveName + "...\n")
+        code = open(self._file_+"/save-"+saveName+".txt", "r").read().split("\n")
+        for line in code:
+            func = getattr(clientCommands, line.split("(",1)[0].split(".")[1])
+            if inspect.iscoroutinefunction(func):
+                line = "await " + line
+            code[counter] = "\t\t" + line
+            counter += 1
+        code = "\n".join(code)
+        exec("async def mainCode():\n\ttry:\n" + code + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e))", globals())
+        await mainCode()
 #---Client Commands---
 class clientCommands():
     def __init__(self, client):
@@ -70,46 +136,48 @@ class clientCommands():
     async def sendMessage(self, channelID, message):
         channel = self.client.get_channel(int(channelID))
         await channel.send(message)
-        print("Message sent")
-    def autoListen(self):
+        if con.GetSetting("autoOutput") != False:
+            print("Message sent")
+    def autoListen(self, channelID=None):
         global loop
         @self.client.event
         async def on_message(message):
-            print(message.author.name + " > " + message.content)
+            if message.channel.id == channelID or channelID==None:
+                print(message.author.name + " > " + message.content)
         loop = False
-client = discord.Client()
-bot = clientCommands(client = client)
+bot = clientCommands(discord.Client())
+con = localCommands(saveFilePath)
 #---Running---
 @bot.client.event
 async def on_ready():
     global loop
     t1 = time.time()
     print("\n------")
-    print("Logged Into: " + str(client.user.name))
+    print("Logged Into: " + str(bot.client.user.name))
     print("Login Time: " + str(round(t1-t0, 1)) + "s")
     print("------\n")
     loop = True
     while loop == True:
-        await controlPanel(bot)
+        await controlPanel(bot, conSelf=con)
     @bot.client.event
     async def on_ready():
         pass
 #----Live Loop---
-TOKEN = None
-BOT = None
-if GetSetting("autoRunCode") == "True":
+if con.GetSetting("autoRunCode") == True:
     mainText = open(_file_+"/Saved_Code", "r").read()
-if GetSetting("REPL") == "True":
-    UpdateSetting("autoRunCode", "True")
+if con.GetSetting("REPL") == True:
     TOKEN = os.environ.get("TOKEN")
-if GetSetting("REPL") == "True":
-    UpdateSetting("autoRunCode", "True")
     BOT = os.environ.get("BOT")
-if TOKEN == None: TOKEN = input("Token   > ").strip('''"''')
-if BOT == None: BOT = input("Bot T/F > ")
+    if TOKEN == None: TOKEN = input("Token   > ").strip('''"''')
+    if BOT == None: BOT = input("Bot T/F > ")
+else:
+    TOKEN = con.GetSetting("TOKEN")
+    BOT = con.GetSetting("BOT")
+    if TOKEN == None: TOKEN = input("Token   > ").strip('''"''')
+    if BOT == None: BOT = input("Bot T/F > ")
 if BOT in ["false", "False", "f", "F"]: BOT = False
 else: BOT = True
 
 print("loading...")
 t0 = time.time()
-client.run(TOKEN, bot=BOT)
+bot.client.run(TOKEN, bot=BOT)
