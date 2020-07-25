@@ -1,16 +1,5 @@
 #rewrite
 
-print('''
-   _____________                 ___________
-  /   ________   \              /   _____   \\
- |  / ███████████████████████████████████|  |
- |  | █▄─▄▄▀█▄─▄█─▄▄▄▄█─▄▄▄─█▄─▄▄─█▄─█─▄█|  |
-(o  o)██─██─██─██▄▄▄▄─█─███▀██─▄▄▄██▄─▄██|  |
- \__/ ▀▄▄▄▄▀▀▄▄▄▀▄▄▄▄▄▀▄▄▄▄▄▀▄▄▄▀▀▀▀▄▄▄▀▀/  /
-  |              \____________/_________/  /
-  ^     Viper 2.0  \ \ \ \ \ \ \__________/
-''')
-
 #---Imports---
 import asyncio
 import discord
@@ -18,6 +7,7 @@ import time
 import inspect
 import subprocess
 import os
+import sys
 #---Settings---
 '''Path where setting and saved code files are saved, default is same directory'''
 saveFilePath = str(os.path.dirname(os.path.abspath(__file__)))
@@ -74,6 +64,9 @@ class localCommands():
     def __init__(self, _file_):
         self._file_ = _file_
     def UpdateSetting(self, variable, value):
+        '''
+        Test description
+        '''
         updated = False
         counter = 0
         if os.path.isfile(self._file_+"/Settings"):
@@ -109,7 +102,7 @@ class localCommands():
         if output == True:
             print("None")
         return None
-    def save(self, saveName, code=None):
+    def createSave(self, saveName, code=None):
         if code != None:
             open(self._file_+"/save-"+saveName+".txt", "w").write(code)
         else:
@@ -121,21 +114,51 @@ class localCommands():
         print("Running File: " + saveName + "...\n")
         code = open(self._file_+"/save-"+saveName+".txt", "r").read().split("\n")
         for line in code:
-            func = getattr(clientCommands, line.split("(",1)[0].split(".")[1])
-            if inspect.iscoroutinefunction(func):
-                line = "await " + line
+            try:
+                func = getattr(clientCommands, line.split("(",1)[0].split(".")[1])
+            except Exception:
+                try:
+                    func = getattr(clientCommands, line.split("(",1)[0])
+                    line = "bot." + line
+                except Exception:
+                    pass
+            if "await" not in line:
+                if inspect.iscoroutinefunction(func):
+                    line = "await " + line
+            try:
+                func = getattr(localCommands, line.split("(",1)[0].split(".")[1])
+            except Exception:
+                try:
+                    func = getattr(localCommands, line.split("(")[0])
+                    line = "con." + line
+                except Exception:
+                    pass
+            if "await" not in line:
+                if inspect.iscoroutinefunction(func):
+                    line = "await " + line
             code[counter] = "\t\t" + line
             counter += 1
         code = "\n".join(code)
+        if self.GetSetting("autoOutput") != False:
+            print("async def mainCode():\n\ttry:\n" + code + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e))")
         exec("async def mainCode():\n\ttry:\n" + code + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e))", globals())
         await mainCode()
 #---Client Commands---
 class clientCommands():
     def __init__(self, client):
         self.client = client
+    async def Cprint(self, variable):
+        print(variable)
+        try:
+            await self.sendMessage(535550762655285271, variable)
+        except:
+            pass
     async def sendMessage(self, channelID, message):
         channel = self.client.get_channel(int(channelID))
-        await channel.send(message)
+        try:
+            await channel.send(message)
+        except:
+            pass
         if con.GetSetting("autoOutput") != False:
             print("Message sent")
     def autoListen(self, channelID=None):
@@ -152,10 +175,10 @@ con = localCommands(saveFilePath)
 async def on_ready():
     global loop
     t1 = time.time()
-    print("\n------")
-    print("Logged Into: " + str(bot.client.user.name))
-    print("Login Time: " + str(round(t1-t0, 1)) + "s")
-    print("------\n")
+    await bot.Cprint("\n------")
+    await bot.Cprint("Logged Into: " + str(bot.client.user.name))
+    await bot.Cprint("Login Time: " + str(round(t1-t0, 1)) + "s")
+    await bot.Cprint("------\n")
     loop = True
     while loop == True:
         await controlPanel(bot, conSelf=con)
@@ -163,6 +186,17 @@ async def on_ready():
     async def on_ready():
         pass
 #----Live Loop---
+print('''
+   _____________                 ___________
+  /   ________   \              /   _____   \\
+ |  / ███████████████████████████████████|  |
+ |  | █▄─▄▄▀█▄─▄█─▄▄▄▄█─▄▄▄─█▄─▄▄─█▄─█─▄█|  |
+(o  o)██─██─██─██▄▄▄▄─█─███▀██─▄▄▄██▄─▄██|  |
+ \__/ ▀▄▄▄▄▀▀▄▄▄▀▄▄▄▄▄▀▄▄▄▄▄▀▄▄▄▀▀▀▀▄▄▄▀▀/  /
+  |              \____________/_________/  /
+  ^     Viper 2.0  \ \ \ \ \ \ \__________/
+''')
+print("discord.py " + discord.__version__)
 if con.GetSetting("autoRunCode") == True:
     mainText = open(_file_+"/Saved_Code", "r").read()
 if con.GetSetting("REPL") == True:
