@@ -16,10 +16,11 @@ import itertools
 import threading
 import colorama
 colorama.init()
+import PySimpleGUI as sg
 #---Variables---
 '''Fundamental settings for the rest the code'''
 
-saveFilePath = str(os.path.dirname(os.path.abspath(__file__))) #file where everything is saved
+saveFilePath = None #file where everything is saved
 
 #Logo colors
 color1 = [255,100,100] #snake color RGB
@@ -57,16 +58,18 @@ async def controlPanel(botSelf, conSelf=None, inputVar="input", *args, **kwargs)
     if choice == "":
         pass
     elif choice == "help":
-        print("Client Commands\n------------")
-        for command in dir(clientCommands):
-            if not command.startswith("__"):
-                print(command + str(inspect.signature(getattr(clientCommands, command))).replace("self, ", "").replace("self", ""))
-        print("\nLocal Commands\n------------")
-        for command in dir(localCommands):
-            if not command.startswith("__"):
-                print(command + str(inspect.signature(getattr(localCommands, command))).replace("self, ", "").replace("self", ""))
+        if botSelf != None:
+            print("Client Commands\n------------")
+            for command in dir(clientCommands):
+                if not command.startswith("__"):
+                    print(command + str(inspect.signature(getattr(clientCommands, command))).replace("self, ", "").replace("self", ""))
+        if conSelf != None:
+            print("\nLocal Commands\n------------")
+            for command in dir(localCommands):
+                if not command.startswith("__"):
+                    print(command + str(inspect.signature(getattr(localCommands, command))).replace("self, ", "").replace("self", ""))
         print("\nShort Cuts\n------------")
-        print("help - this page\nsaves - shows all saves\nsettings - shows all settings\nend - ends loop")
+        print("help - this page\nsaves - shows all saves\nsettings - shows all settings")
     elif choice == "restart":
         os.execl(sys.executable, '"{}"'.format(sys.executable), *sys.argv)
     elif choice == "settings":
@@ -77,15 +80,18 @@ async def controlPanel(botSelf, conSelf=None, inputVar="input", *args, **kwargs)
                     print(setting.replace("=", " = "))
         print("\nAll Settings\n------------")
         print(allSettings)
-    elif choice == "end":
-        loop = False
     elif choice == "saves":
+        if conSelf == None:
+            print(color("Local commands turned off", error))
         for file in os.listdir(saveFilePath):
             if file.startswith("save-"):
                 if file.endswith(".txt"):
                     print(file.split(".")[0].split("save-")[1])
     else:
         if findCommand(choice, localCommands):
+            if conSelf == None:
+                print(color("Local commands turned off", error))
+                return
             if "(" in choice:
                 self = conSelf
                 command = findCommand(choice, localCommands, True)
@@ -100,6 +106,9 @@ async def controlPanel(botSelf, conSelf=None, inputVar="input", *args, **kwargs)
                 choice = choice.replace(command, "self1." + command)
 
         if findCommand(choice, clientCommands):
+            if botSelf == None:
+                print(color("Not signed into Discord client", error))
+                return
             if "(" in choice:
                 self = botSelf
                 command = findCommand(choice, clientCommands, True)
@@ -124,6 +133,8 @@ def color(text, foregroundRGBcolor=[255,255,255], backgroundRGBcolor=[0,0,0]):
 #---Local Commands---
 class localCommands():
     def __init__(self, _file_):
+        if _file_ == None:
+            _file_ = str(os.path.dirname(os.path.abspath(__file__)))
         self._file_ = _file_
     def updateSetting(self, variable, value):
         '''
@@ -280,7 +291,6 @@ async def on_ready():
     async def on_ready():
         pass
 #----Live Loop---
-
 color('''    _____________               ___________'''+"   "+'''
    /   ________   \            /   _____   \\'''+"     "+'''
   |  /''', color1, bcolor1)
@@ -301,28 +311,44 @@ color("  Viper 2.0", color2, bcolor1)
 color("  \ \ \ \ \ \ \________/", color1, bcolor1)
 color("  ", color1, bcolor1)
 print("\n")
-print("discord.py " + discord.__version__)
-if con.getSetting("REPL") == True:
-    TOKEN = os.environ.get("TOKEN")
-    BOT = os.environ.get("BOT")
-    if TOKEN == None: TOKEN = input("Token   > ").strip('''"''')
-    if BOT == None: BOT = input("Bot T/F > ")
+if con.getSetting("signin") != False:
+    print("discord.py " + discord.__version__)
+    if con.getSetting("REPL") == True:
+        TOKEN = os.environ.get("TOKEN")
+        BOT = os.environ.get("BOT")
+        if TOKEN == None: TOKEN = input("Token   > ").strip('''"''')
+        if BOT == None: BOT = input("Bot T/F > ")
+    else:
+        TOKEN = con.getSetting("TOKEN")
+        BOT = con.getSetting("BOT")
+        if TOKEN == None: TOKEN = input("Token   > ").strip('''"''')
+        if BOT == None: BOT = input("Bot T/F > ")
+    if BOT in ["false", "False", "f", "F"]: BOT = False
+    else: BOT = True
+    loadLoop = False
+    def load():
+        for i in itertools.cycle(['.  ','.. ','...','   ']):
+            if loadLoop:
+                break
+            sys.stdout.write('\rLoading'+i)
+            sys.stdout.flush()
+            time.sleep(0.25)
+    loading = threading.Thread(target=load)
+    loading.start()
+    t0 = time.time()
+    bot.client.run(TOKEN, bot=BOT)
 else:
-    TOKEN = con.getSetting("TOKEN")
-    BOT = con.getSetting("BOT")
-    if TOKEN == None: TOKEN = input("Token   > ").strip('''"''')
-    if BOT == None: BOT = input("Bot T/F > ")
-if BOT in ["false", "False", "f", "F"]: BOT = False
-else: BOT = True
-loadLoop = False
-def load():
-    for i in itertools.cycle(['.  ','.. ','...','   ']):
-        if loadLoop:
-            break
-        sys.stdout.write('\rLoading'+i)
-        sys.stdout.flush()
-        time.sleep(0.25)
-loading = threading.Thread(target=load)
-loading.start()
-t0 = time.time()
-bot.client.run(TOKEN, bot=BOT)
+    async def running():
+        if con.getSetting("autoRunFile") not in (None, False, True):
+            await con.loadSave(con.getSetting("autoRunFile"))
+        elif con.getSetting("autoRunFile") == True:
+            await con.loadSave("Saved_Code")
+        elif con.getSetting("autoRunCommand") != None:
+            await controlPanel(bot, con, con.getSetting("autoRunCommand"))
+        else:
+            loop = True
+            while loop == True:
+                await controlPanel(None, con)
+    aloop = asyncio.new_event_loop()
+    asyncio.set_event_loop(aloop)
+    aloop.run_until_complete(running())
