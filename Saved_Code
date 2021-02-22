@@ -1,3 +1,0 @@
-print(bot.client.user)
-bot.commandCenter()
-#bot.seekSpiceTriggers("p", "sfw", triggers = ["-yiff"])
