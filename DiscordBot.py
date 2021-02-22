@@ -550,9 +550,6 @@ class localCommands():
         self._file_ = _file_
     def updateSetting(self, variable, value):
         value = str(value)
-        '''
-        Test description
-        '''
         updated = False
         counter = 0
         if os.path.isfile(self._file_+"/Settings"):
@@ -600,9 +597,9 @@ class localCommands():
     def deleteSave(self, saveName):
         if not saveName.endswith(".txt") and not saveName.endswith(".py"): os.remove(self._file_+"/save-"+saveName+".txt")
         else: os.remove(self._file_+"/save-"+saveName)
-    def openSave(self, saveName):
-        textEditor = self.getSetting("textEditor")
-        if textEditor == None: textEditor = ""
+    def openSave(self, saveName, textEditor="default"):
+        if textEditor == "default": textEditor = self.getSetting("textEditor")
+        elif textEditor == None: textEditor = ""
         else: textEditor += " "
         print("Opening File: " + saveName + "...\n")
         if saveName.endswith(".py") or saveName.endswith(".txt"):
@@ -712,10 +709,7 @@ async def on_ready():
     if not con.getSetting("terminal"):
         loadLoop = True
         loading.join()
-    await bot.Cprint("------")
-    await bot.Cprint("Logged Into: " + str(bot.client.user.name))
-    await bot.Cprint("Login Time: " + str(round(t1-t0, 1)) + "s")
-    await bot.Cprint("------")
+    await bot.Cprint("------" + "\nLogged Into: " + str(bot.client.user.name) + "\nLogin Time: " + str(round(t1-t0, 1)) + "s" + "\n------")
     if con.getSetting("autoRunFile") not in (None, False, True):
         await con.loadSave(con.getSetting("autoRunFile"))
     if con.getSetting("autoRunFile") == True:
