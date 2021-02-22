@@ -350,7 +350,8 @@ ansi = ansi()
 #---Variables---
 '''Fundamental settings for the rest the code'''
 VERSION = "3.2"
-saveFilePath = None #file where everything is saved
+if os.path.isdir(r"C:\Users\User\Documents\Python_Coding\DiscordBot_Codes"): saveFilePath = r"C:\Users\User\Documents\Python_Coding\DiscordBot_Codes" #file where everything is saved
+else: saveFilePath = None #file where everything is saved
 BOT = True
 TOKEN = None
 consoleCommands = [
@@ -523,8 +524,8 @@ async def controlPanel(botSelf=None, conSelf=None, inputVar="input", *args, **kw
     if choice not in ["", " ", "\n"]:
         try:
             if con.getSetting("autoOutput"):
-                print("async def mainCode(self1, self2):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e), error)\n\tglobals().update(locals())")
-            exec("async def mainCode(self1, self2):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('Error: ' + str(e), error)\n\tglobals().update(locals())", globals())
+                print("async def mainCode(self1, self2):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), error)\n\tglobals().update(locals())")
+            exec("async def mainCode(self1, self2):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), error)\n\tglobals().update(locals())", globals())
             await mainCode(conSelf, botSelf)
         except Exception as e:
             print("ERROR: " + str(e), error)
@@ -597,7 +598,7 @@ class localCommands():
         else:
             file.write("")
     def deleteSave(self, saveName):
-        if not saveName.endswith(".txt") and not saveName.endswith(".py"): os.remove(self._file_+"\save-"+saveName+".txt")
+        if not saveName.endswith(".txt") and not saveName.endswith(".py"): os.remove(self._file_+"/save-"+saveName+".txt")
         else: os.remove(self._file_+"/save-"+saveName)
     def openSave(self, saveName):
         textEditor = self.getSetting("textEditor")
