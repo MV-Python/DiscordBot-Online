@@ -1,11 +1,4 @@
 #rewrite
-'''
-TO-DO LIST
-- Get rid of relogin
-- Make commands easier to call
-- Make settings page, "Tabs" section in cookbook
-- Make protogen server to test GUI
-'''
 #---Imports---
 from __future__ import unicode_literals, print_function
 OGprint = print
@@ -356,7 +349,7 @@ ansi = ansi()
 
 #---Variables---
 '''Fundamental settings for the rest the code'''
-VERSION = "3.1"
+VERSION = "3.2"
 saveFilePath = None #file where everything is saved
 BOT = True
 TOKEN = None
@@ -757,7 +750,7 @@ color("▀▄▄▄▄▀▀▄▄▄▀▄▄▄▄▄▀▄▄▄▄▄▀▄�
 color('''|  |'''+"      "+'''
    |              \____________/_______/  /'''+"   "+'''
    ^   ''', color1, bcolor1)
-color("  Viper 2.0", color2, bcolor1)
+color("  Viper " + VERSION, color2, bcolor1)
 color("  \ \ \ \ \ \ \________/", color1, bcolor1)
 color("  ", color1, bcolor1)
 print("\n")
