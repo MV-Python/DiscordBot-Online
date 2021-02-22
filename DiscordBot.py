@@ -1,6 +1,7 @@
 #rewrite
 #---Imports---
 from __future__ import unicode_literals, print_function
+print("this is a test")
 OGprint = print
 OGinput = input
 from prompt_toolkit import print_formatted_text as ANSIprint, ANSI
