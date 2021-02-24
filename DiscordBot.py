@@ -376,6 +376,7 @@ consoleCommands = [
 submitCommand = None
 submitInput = None
 inputMode = False
+localVariables = {}
 
 #Logo colors
 color1 = [255,100,100] #snake color RGB
@@ -411,6 +412,9 @@ def input(string=""):
             submitInput = None
             inputMode = False
             return input
+def loginThread(self, TOKEN=None, BOT=None):
+    bot.login(TOKEN, BOT)
+    loadLoop=True
 def findCommand(choice, classVar, get=False):
     choice = choice.replace(" ", "").replace("\t", "")
     for i in dir(classVar):
@@ -430,8 +434,9 @@ def consoleCommand(choice):
             arguments = "(" + choice.replace(textCommand+" ", "").replace(" ", ",") + ")"
             return realCommand + arguments
     return choice
-async def controlPanel(botSelf=None, conSelf=None, inputVar="input", *args, **kwargs):
+async def controlPanel(bot=None, inputVar="input", *args, **kwargs):
     global loop
+    con = bot.con
     if inputVar == "input":
         choice = input("\n >>> ")
         print("\nRunning Command...\n")
@@ -449,40 +454,39 @@ async def controlPanel(botSelf=None, conSelf=None, inputVar="input", *args, **kw
         if choice == "":
             pass
         elif choice == "help":
-            if botSelf != None:
+            if bot != None:
                 print("Client Commands\n------------")
                 for command in dir(clientCommands):
                     if not command.startswith("__"):
                         print(command + str(inspect.signature(getattr(clientCommands, command))).replace("self, ", "").replace("self", ""))
-            if conSelf != None:
-                print("\nLocal Commands\n------------")
-                for command in dir(localCommands):
-                    if not command.startswith("__"):
-                        print(command + str(inspect.signature(getattr(localCommands, command))).replace("self, ", "").replace("self", ""))
+            print("\nLocal Commands\n------------")
+            for command in dir(localCommands):
+                if not command.startswith("__"):
+                    print(command + str(inspect.signature(getattr(localCommands, command))).replace("self, ", "").replace("self", ""))
             print("\nShort Cuts\n------------")
             print("help - this page\nsaves - shows all saves\nsettings - shows all settings")
         elif choice == "restart":
             os.execl(sys.executable, '"{}"'.format(sys.executable), *sys.argv)
         elif choice == "settings":
             print("Used Settings\n------------")
-            for setting in open(con._file_+"/Settings", "r").read().split("\n"):
+            for setting in open(bot._file_+"/Settings", "r").read().split("\n"):
                 if not setting.startswith("#"):
                     if not setting == "":
                         print(setting.replace("=", " = "))
             print("\nAll Settings\n------------")
             print(allSettings)
         elif choice == "saves":
-            for file in os.listdir(con._file_):
+            for file in os.listdir(bot._file_):
                 if file.startswith("save-"):
                     if file.endswith(".txt") or file.endswith(".py"):
                         print(file.split("save-")[1])
         else:
             if findCommand(choice, localCommands):
-                if conSelf == None:
+                if con == None:
                     print("Local commands turned off", error)
                     return
                 if "(" in choice:
-                    self = conSelf
+                    self = con
                     counter=0
                     for i in range(sum(choice.count(x) for x in ("(", " "))):
                         text = choice.replace("(", " ").split(" ")[counter].replace(")", "").replace('''"''', "")
@@ -494,16 +498,16 @@ async def controlPanel(botSelf=None, conSelf=None, inputVar="input", *args, **kw
                             if inspect.iscoroutinefunction(func):
                                 if ("await " + command) not in choice:
                                     choice = choice.replace(command, "await " + command)
-                            if ("self1." + command) not in choice:
-                                choice = choice.replace(command, "self1." + command)
+                            if ("self." + command) not in choice:
+                                choice = choice.replace(command, "self." + command)
                         except Exception as e:
                             pass
             if findCommand(choice, clientCommands):
-                if botSelf == None:
+                if bot == None:
                     print("Not signed into Discord client", error)
                     return
                 if "(" in choice:
-                    self = botSelf
+                    self = bot
                     counter=0
                     for i in range(sum(choice.count(x) for x in ("(", " "))):
                         text = choice.replace("(", " ").split(" ")[counter].replace(")", "").replace('''"''', "")
@@ -515,33 +519,32 @@ async def controlPanel(botSelf=None, conSelf=None, inputVar="input", *args, **kw
                             if inspect.iscoroutinefunction(func):
                                 if ("await " + command) not in choice:
                                     choice = choice.replace(command, "await " + command)
-                            if ("self2." + command) not in choice:
-                                choice = choice.replace(command, "self2." + command)
+                            if ("self." + command) not in choice:
+                                choice = choice.replace(command, "self." + command)
                         except Exception as e:
                             pass
             finalList.append(choice)
     choice = "\n".join(finalList)
     if choice not in ["", " ", "\n"]:
         try:
-            if con.getSetting("autoOutput"):
-                print("async def mainCode(self1, self2):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), error)\n\tglobals().update(locals())")
-            exec("async def mainCode(self1, self2):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), error)\n\tglobals().update(locals())", globals())
-            await mainCode(conSelf, botSelf)
+            if bot.getSetting("autoOutput"):
+                print("async def mainCode(self):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), local.error)\n\tlocalVariables.update(locals())")
+            exec("async def mainCode(self):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), local.error)\n\tlocalVariables.update(locals())", localVariables)
+            await localVariables.get("mainCode")(bot)
         except Exception as e:
             print("ERROR: " + str(e), error)
-    if not con.getSetting("terminal"):
+    if not bot.getSetting("terminal"):
         print("_________________________________________________________________________________________________", greyText)
     else:
         print("------------", greyText)
 def color(text, foregroundRGBcolor=[255,255,255], backgroundRGBcolor=[0,0,0]):
-    if not con.getSetting("terminal"):
+    if not bot.getSetting("terminal"):
         if isinstance(foregroundRGBcolor, str):
             print(text, colorCode=foregroundRGBcolor)
         else:
             ANSIprint(ANSI(ansi.color(text, fg=foregroundRGBcolor, bg=backgroundRGBcolor)), end='')
     else:
         ANSIprint(ANSI(ansi.color(text, fg=foregroundRGBcolor, bg=backgroundRGBcolor)), end='')
-
 #---Local Commands---
 class localCommands():
     def __init__(self, _file_, *args, **kwargs):
@@ -600,7 +603,7 @@ class localCommands():
     def openSave(self, saveName, textEditor="default"):
         if textEditor == "default": textEditor = self.getSetting("textEditor")
         elif textEditor == None: textEditor = ""
-        else: textEditor += " "
+        if not textEditor == None: textEditor += " "
         print("Opening File: " + saveName + "...\n")
         if saveName.endswith(".py") or saveName.endswith(".txt"):
             os.system(textEditor + self._file_+"/save-"+saveName)
@@ -614,16 +617,18 @@ class localCommands():
                 self.deleteSave(saveName + ".py")
             if saveName.endswith(".py"):
                 os.system(self._file_+"/save-"+saveName)
-    async def loadSave(self, saveName):
+    async def loadSave(self, saveName, botSelf="defualt", mod=False):
         global loop
         counter = 0
         func = None
         tab = True
-        print("Running File: " + saveName + "...\n")
+        if mod: prefix = "mod-"
+        else: prefix="save-"
+        print("Running File: " + prefix + saveName + "...\n")
         if saveName.endswith(".py") or saveName.endswith(".txt"):
-            file = open(self._file_+"/save-"+saveName, "r")
+            file = open(self._file_+"/"+prefix+saveName, "r")
         else:
-            file = open(self._file_+"/save-"+saveName+".txt", "r")
+            file = open(self._file_+"/"+prefix+saveName+".txt", "r")
         code = file.read().split("\n")
         if "" in code: code.remove("")
         for line in code:
@@ -641,7 +646,8 @@ class localCommands():
             loop = False
         if code == "\t\t":
             code += "pass"
-        await controlPanel(bot, con, code)
+        if botSelf == "defualt": await controlPanel(bot, code)
+        else: await controlPanel(botSelf, code)
     def renameSave(self, saveName, newSaveName):
         if saveName.endswith(".py") or saveName.endswith(".txt"):
             file = self._file_+"/save-"+saveName
@@ -655,8 +661,13 @@ class localCommands():
 
 #---Client Commands---
 class clientCommands():
-    def __init__(self, client):
+    def __init__(self, client, filePath=None):
         self.client = client
+        if filePath == None:
+            filePath = saveFilePath
+        self.con = localCommands(filePath)
+        for i in dir(self.con):
+            exec('''if not i.startswith("__"): self.'''+ i + '''= self.con.''' + i)
     async def commandCenter(self, prefix = "cc:"):
         global loop
         @self.client.event
@@ -681,7 +692,7 @@ class clientCommands():
             await channel.send(message)
         except:
             pass
-        if con.getSetting("autoOutput") == True:
+        if self.getSetting("autoOutput") == True:
             print("Message sent")
     def autoListen(self, channelID=None):
         global loop
@@ -690,10 +701,65 @@ class clientCommands():
         async def on_message(message):
             if message.channel.id == channelID or channelID==None:
                 print(message.author.name + " > " + message.content)
+    def login(self, TOKEN=None, BOT=None, fail=False):
+        global t0, loading, loadLoop
+        if self.getSetting("signin") == False:
+            return
+        if self.getSetting("REPL") == True:
+            TOKEN = os.environ.get("TOKEN")
+            BOT = os.environ.get("BOT")
+        elif TOKEN == "" or TOKEN == None:
+            TOKEN = self.getSetting("TOKEN")
+            BOT = self.getSetting("BOT")
+        if not self.getSetting("terminal"):
+            if BOT == None:
+                BOT = BOT_BUTTON_PRESSED
+        if TOKEN == None: TOKEN = input("Token   > ")
+        if BOT == None: BOT = input("Bot T/F > ")
+        if BOT in ["false", "False", "f", "F", False]: BOT = False
+        else: BOT = True
+        TOKEN = TOKEN.strip('''"''')
+        if TOKEN == "none" or TOKEN == "None":
+            async def runLocal():
+                global submitCommand
+                loop = True
+                while loop == True:
+                    if self.getSetting("terminal"):
+                        submitCommand = "input"
+                    else:
+                        time.sleep(1)
+                    if submitCommand != None:
+                        await controlPanel(self, inputVar=submitCommand)
+                        submitCommand = None
+            asyncio.run(runLocal())
+        else:
+            if not self.getSetting("terminal"):
+                loadLoop = False
+                def load():
+                    for i in itertools.cycle(['.  ','.. ','...','   ']):
+                        if loadLoop:
+                            break
+                        #print('Loading'+i, end="")
+                        window[OUTPUT].update('loading'+i)
+                        time.sleep(0.25)
+                        output = str(window[OUTPUT].get()).split("\n")
+                        del output[-2]
+                        window[OUTPUT].update("\n".join(output))
+                loading = threading.Thread(target=load)
+                loading.start()
+            t0 = time.time()
+            try:
+                bot.client.run(TOKEN, bot=BOT)
+            except discord.errors.HTTPException and discord.errors.LoginFailure as e:
+                if not self.getSetting("terminal"):
+                    loadLoop = True
+                time.sleep(0.25)
+                print("Login Unsuccessful")
+            print("END")
+
 #---Running---
-bot = clientCommands(discord.Client())
-con = localCommands(saveFilePath)
-if con.getSetting("terminal"):
+bot = clientCommands(discord.Client(), saveFilePath)
+if bot.getSetting("terminal"):
     def print(string="", colorCode=None, end="\n"):
         if colorCode != None:
             color(string+end, colorCode)
@@ -706,25 +772,35 @@ if con.getSetting("terminal"):
 async def on_ready():
     global loop, loadLoop, submitCommand
     t1 = time.time()
-    if not con.getSetting("terminal"):
+    if not bot.getSetting("terminal"):
         loadLoop = True
         loading.join()
     await bot.Cprint("------" + "\nLogged Into: " + str(bot.client.user.name) + "\nLogin Time: " + str(round(t1-t0, 1)) + "s" + "\n------")
-    if con.getSetting("autoRunFile") not in (None, False, True):
-        await con.loadSave(con.getSetting("autoRunFile"))
-    if con.getSetting("autoRunFile") == True:
-        await con.loadSave("Saved_Code")
-    if con.getSetting("autoRunCommand") != None:
-        await controlPanel(bot, con, con.getSetting("autoRunCommand"))
+    for file in os.listdir(bot._file_):
+        if file.startswith("mod-"):
+            if file.endswith(".txt") or file.endswith(".py"):
+                await bot.loadSave(file.split("mod-")[1], mod=True)
+    if bot.getSetting("autoRunFile") not in (None, False, True):
+        counter = 0
+        for i in range(bot.getSetting("autoRunFile").count(",")+1):
+            await bot.loadSave(bot.getSetting("autoRunFile").replace(" ", "").split(",")[counter])
+            counter += 1
+    if bot.getSetting("autoRunFile") == True:
+        await bot.loadSave("Saved_Code")
+    if bot.getSetting("autoRunCommand") not in (None, False):
+        await controlPanel(bot, bot.getSetting("autoRunCommand"))
+        for i in range(bot.getSetting("autoRunCommand").count(",")+1):
+            await controlPanel(bot, bot.getSetting("autoRunCommand").replace(" ", "").split(",")[counter])
+            counter += 1
 
     loop = True
     while loop == True:
-        if con.getSetting("terminal"):
+        if bot.getSetting("terminal"):
             submitCommand = "input"
         else:
             time.sleep(1)
         if submitCommand != None:
-            await controlPanel(bot, con, inputVar=submitCommand)
+            await controlPanel(bot, inputVar=submitCommand)
             submitCommand = None
     print("END OF CONTROL PANEL\n")
 #    async def on_ready():
@@ -749,66 +825,13 @@ color("  Viper " + VERSION, color2, bcolor1)
 color("  \ \ \ \ \ \ \________/", color1, bcolor1)
 color("  ", color1, bcolor1)
 print("\n")
-def login(TOKEN=None, BOT=None, fail=False):
-    global t0, loading, loadLoop
-    if con.getSetting("signin") == False:
-        return
-    if con.getSetting("REPL") == True:
-        TOKEN = os.environ.get("TOKEN")
-        BOT = os.environ.get("BOT")
-    elif TOKEN == "" or TOKEN == None:
-        TOKEN = con.getSetting("TOKEN")
-        BOT = con.getSetting("BOT")
-    if not con.getSetting("terminal"):
-        if BOT == None:
-            BOT = BOT_BUTTON_PRESSED
-    if TOKEN == None: TOKEN = input("Token   > ")
-    if BOT == None: BOT = input("Bot T/F > ")
-    if BOT in ["false", "False", "f", "F", False]: BOT = False
-    else: BOT = True
-    TOKEN = TOKEN.strip('''"''')
-    if TOKEN == "none" or TOKEN == "None":
-        async def runLocal():
-            global submitCommand
-            loop = True
-            while loop == True:
-                if con.getSetting("terminal"):
-                    submitCommand = "input"
-                else:
-                    time.sleep(1)
-                if submitCommand != None:
-                    await controlPanel(None, con, inputVar=submitCommand)
-                    submitCommand = None
-        asyncio.run(runLocal())
-    else:
-        if not con.getSetting("terminal"):
-            loadLoop = False
-            def load():
-                for i in itertools.cycle(['.  ','.. ','...','   ']):
-                    if loadLoop:
-                        break
-                    #print('Loading'+i, end="")
-                    window[OUTPUT].update('loading'+i)
-                    time.sleep(0.25)
-                    output = str(window[OUTPUT].get()).split("\n")
-                    del output[-2]
-                    window[OUTPUT].update("\n".join(output))
-            loading = threading.Thread(target=load)
-            loading.start()
-        t0 = time.time()
-        try:
-            bot.client.run(TOKEN, bot=BOT)
-        except discord.errors.HTTPException and discord.errors.LoginFailure as e:
-            if not con.getSetting("terminal"):
-                loadLoop = True
-            time.sleep(0.25)
-            print("Login Unsuccessful")
-        print("END")
+class local():
+    pass
+for i in list(globals()):
+    exec("local." + i + "= globals()['"+i+"']", globals())
+localVariables.update(globals())
 
-def loginThread(TOKEN=None, BOT=None):
-    login(TOKEN, BOT)
-    loadLoop=True
-if not con.getSetting("terminal"):
+if not bot.getSetting("terminal"):
     size = 100
     logo = '''
      _____________               ___________
@@ -920,4 +943,5 @@ if not con.getSetting("terminal"):
             print(str(e))
     window.close()
 else:
-    login(TOKEN, BOT)
+    if bot.getSetting("login") == False: pass
+    bot.login(TOKEN, BOT)
