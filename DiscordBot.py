@@ -16,6 +16,7 @@ import threading
 import colorama
 colorama.init()
 import PySimpleGUI as sg
+import traceback
 import re
 import pytz
 class ansi():
@@ -371,12 +372,22 @@ consoleCommands = [
     ["update setting", "updateSetting"],
     ["get setting", "getSetting"],
     ]
+#True if input value, False for boolian value and input
+settings = [
+    ["TOKEN", True],
+    ["BOT", False],
+    ["terminal", False],
+    ["autoOutput", False],
+    ["autoRunSave", False],
+    ["textEditor", True],
+    ]
 
 '''Variables for the rest of code'''
 submitCommand = None
 submitInput = None
 inputMode = False
 localVariables = {}
+panelVariables = {}
 
 #Logo colors
 color1 = [255,100,100] #snake color RGB
@@ -385,15 +396,16 @@ bcolor2 = [50,50,50] #backgorund color RGB
 color2 = [255,0,0] #logo color RGB
 
 #General colors
-#error = "red"
 error = "red"
 greyText = "grey"
 
 #All setting
 allSettings = '''TOKEN - Discord authorization token to log in
 BOT - T/F Bot account?
+terminal - T/F Run in terminal (use if GUI not functional)
 autoOutput - T/F Prints more information from each command, good for testing
-autoRunFile - Automatically runs a save file, open Settings.txt and delete the setting to disable.'''
+autoRunSave - Automatically runs a save file, open Settings.txt and delete the setting to disable.
+autoRunCommand - Automatic'''
 
 #---Local Functions---
 def print(string="", colorCode=None, end="\n"):
@@ -419,13 +431,12 @@ def findCommand(choice, classVar, get=False):
     choice = choice.replace(" ", "").replace("\t", "")
     for i in dir(classVar):
         if not i.startswith("__"):
-            for j in choice.replace("(", " ").replace(")", " ").replace(":", " ").split(" "):
+            for j in choice.replace("(", " ").replace(")", " ").replace(":", " ").replace(".", " ").split(" "):
                 if i == j:
                     if get:
                         return i
                     else:
                         return True
-    return False
 def consoleCommand(choice):
     for subList in consoleCommands:
         if choice.startswith(subList[0]):
@@ -434,7 +445,7 @@ def consoleCommand(choice):
             arguments = "(" + choice.replace(textCommand+" ", "").replace(" ", ",") + ")"
             return realCommand + arguments
     return choice
-async def controlPanel(bot=None, inputVar="input", *args, **kwargs):
+async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **kwargs):
     global loop
     con = bot.con
     if inputVar == "input":
@@ -496,10 +507,10 @@ async def controlPanel(bot=None, inputVar="input", *args, **kwargs):
                             func = getattr(localCommands, command)
                             execPrefix = ""
                             if inspect.iscoroutinefunction(func):
-                                if ("await " + command) not in choice:
+                                if ("await " + command) not in choice and ("await __self__." + command) not in choice:
                                     choice = choice.replace(command, "await " + command)
-                            if ("self." + command) not in choice:
-                                choice = choice.replace(command, "self." + command)
+                            if ("__self__." + command) not in choice:
+                                choice = choice.replace(command, "__self__." + command)
                         except Exception as e:
                             pass
             if findCommand(choice, clientCommands):
@@ -517,22 +528,42 @@ async def controlPanel(bot=None, inputVar="input", *args, **kwargs):
                             func = getattr(clientCommands, command)
                             execPrefix = ""
                             if inspect.iscoroutinefunction(func):
-                                if ("await " + command) not in choice:
+                                if ("await " + command) not in choice and ("await __self__." + command) not in choice:
                                     choice = choice.replace(command, "await " + command)
-                            if ("self." + command) not in choice:
-                                choice = choice.replace(command, "self." + command)
+                            if ("__self__." + command) not in choice:
+                                choice = choice.replace(command, "__self__." + command)
                         except Exception as e:
                             pass
+            counter = 0
+            for i in range(sum(choice.count(x) for x in ("(", " "))+1):
+                func = choice.replace("(", " ").split(" ")[counter].replace(")", "").replace('''"''', "").replace("\t", "")
+                counter += 1
+                try:
+                    panelVariables.update({"choice" : choice})
+                    panelVariables.update({"func" : func})
+                    panelVariables.update(localVariables)
+                    if "await " + func not in choice:
+                        exec("if inspect.iscoroutinefunction(" + func + "): awaitFunc = True", panelVariables)
+                        if panelVariables.get("awaitFunc"):
+                            choice = choice.replace(func, "await " + func)
+                            panelVariables.update({"awaitFunc" : False})
+                except Exception as e:
+                    pass
             finalList.append(choice)
     choice = "\n".join(finalList)
     if choice not in ["", " ", "\n"]:
         try:
+            code = "async def mainCode(__self__):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), local.error)\n\t\ttraceback.print_exc()\n\tlocalVariables.update(locals())"
             if bot.getSetting("autoOutput"):
-                print("async def mainCode(self):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), local.error)\n\tlocalVariables.update(locals())")
-            exec("async def mainCode(self):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), local.error)\n\tlocalVariables.update(locals())", localVariables)
+                print(code)
+            if returnValue:
+                return code
+            else:
+                exec(code, localVariables)
             await localVariables.get("mainCode")(bot)
         except Exception as e:
             print("ERROR: " + str(e), error)
+            traceback.print_exc()
     if not bot.getSetting("terminal"):
         print("_________________________________________________________________________________________________", greyText)
     else:
@@ -617,14 +648,17 @@ class localCommands():
                 self.deleteSave(saveName + ".py")
             if saveName.endswith(".py"):
                 os.system(self._file_+"/save-"+saveName)
-    async def loadSave(self, saveName, botSelf="defualt", mod=False):
+    async def loadSave(self, saveName, botSelf="defualt", mod=False, *args, **kwargs):
         global loop
         counter = 0
         func = None
         tab = True
-        if mod: prefix = "mod-"
-        else: prefix="save-"
-        print("Running File: " + prefix + saveName + "...\n")
+        if mod:
+            prefix = "mod-"
+            print("Loaded Mod: " + saveName)
+        else:
+            prefix="save-"
+            print("Running File: " + prefix + saveName + "...\n")
         if saveName.endswith(".py") or saveName.endswith(".txt"):
             file = open(self._file_+"/"+prefix+saveName, "r")
         else:
@@ -640,14 +674,17 @@ class localCommands():
             if "''')" in line:
                 tab = True
             counter += 1
-        code.insert(0, "client=bot.client")
+        code.insert(0, "client=__self__.client")
         code = "\n".join(code)
-        if "@client" in code or "@bot.client" in code:
+        if "@client" in code or "@__self__.client" in code:
             loop = False
         if code == "\t\t":
             code += "pass"
-        if botSelf == "defualt": await controlPanel(bot, code)
-        else: await controlPanel(botSelf, code)
+        if botSelf == "defualt": await controlPanel(bot, code, **kwargs)
+        else: await controlPanel(botSelf, code, **kwargs)
+        if mod:
+            for i in localVariables:
+                exec("mod." + i + "= localVariables.get('"+i+"')", localVariables)
     def renameSave(self, saveName, newSaveName):
         if saveName.endswith(".py") or saveName.endswith(".txt"):
             file = self._file_+"/save-"+saveName
@@ -680,8 +717,8 @@ class clientCommands():
                     for line in text:
                         await controlPanel(self, con, line)
         loop = False
-    async def Cprint(self, variable):
-        print(variable)
+    async def Cprint(self, variable, printVariable=False):
+        if printVariable: print(variable)
         try:
             await self.sendMessage(535550762655285271, variable)
         except:
@@ -714,6 +751,8 @@ class clientCommands():
         if not self.getSetting("terminal"):
             if BOT == None:
                 BOT = BOT_BUTTON_PRESSED
+            if TOKEN == None:
+                TOKEN = window['-TOKEN-'].get()
         if TOKEN == None: TOKEN = input("Token   > ")
         if BOT == None: BOT = input("Bot T/F > ")
         if BOT in ["false", "False", "f", "F", False]: BOT = False
@@ -775,23 +814,17 @@ async def on_ready():
     if not bot.getSetting("terminal"):
         loadLoop = True
         loading.join()
-    await bot.Cprint("------" + "\nLogged Into: " + str(bot.client.user.name) + "\nLogin Time: " + str(round(t1-t0, 1)) + "s" + "\n------")
+    await bot.Cprint("------" + "\nLogged Into: " + str(bot.client.user.name) + "\nLogin Time: " + str(round(t1-t0, 1)) + "s" + "\n------", True)
     for file in os.listdir(bot._file_):
         if file.startswith("mod-"):
             if file.endswith(".txt") or file.endswith(".py"):
                 await bot.loadSave(file.split("mod-")[1], mod=True)
-    if bot.getSetting("autoRunFile") not in (None, False, True):
-        counter = 0
-        for i in range(bot.getSetting("autoRunFile").count(",")+1):
-            await bot.loadSave(bot.getSetting("autoRunFile").replace(" ", "").split(",")[counter])
-            counter += 1
-    if bot.getSetting("autoRunFile") == True:
+    if bot.getSetting("autoRunSave") not in (None, False, True, "", " "):
+        await bot.loadSave(bot.getSetting("autoRunSave"))
+    if bot.getSetting("autoRunSave") == True:
         await bot.loadSave("Saved_Code")
     if bot.getSetting("autoRunCommand") not in (None, False):
         await controlPanel(bot, bot.getSetting("autoRunCommand"))
-        for i in range(bot.getSetting("autoRunCommand").count(",")+1):
-            await controlPanel(bot, bot.getSetting("autoRunCommand").replace(" ", "").split(",")[counter])
-            counter += 1
 
     loop = True
     while loop == True:
@@ -825,6 +858,8 @@ color("  Viper " + VERSION, color2, bcolor1)
 color("  \ \ \ \ \ \ \________/", color1, bcolor1)
 color("  ", color1, bcolor1)
 print("\n")
+class mod():
+    pass
 class local():
     pass
 for i in list(globals()):
@@ -864,8 +899,19 @@ if not bot.getSetting("terminal"):
                     [HIDE_BUTTON],
                     [sg.Multiline(size=(size-3, 30), key=OUTPUT, autoscroll=True, pad=(5, 0))],
                     [sg.Input(size=(size, 1), key="IN"), sg.Button('Submit', visible=False, bind_return_key=True)] ]
-        settingsLayout = [
-        [sg.Text("autoOutput")] ]
+        settingsLayout = []
+        rightColumn = [[sg.Text("")]]
+        leftColumn = [[sg.Button("Apply")]]
+        for i in settings:
+            leftColumn.append([sg.Text(f"{i[0]:<30}", font="Helvetica 11")])
+            if i[1] in ["True", "False", True, False, "t", "f", "F", "T", "true", "false"]:
+                button = bot.getSetting(i[0])
+            else:
+                button = "False"
+            if i[1]:
+                button = "Clear"
+            rightColumn.append([sg.Button(button, key = i[0], size=(5,1), font="Helvetica 9"), sg.Input(size=(size-47, 1), key="IN"+i[0], font="Helvetica 9")])
+        settingsLayout.append([sg.Column(rightColumn, justification="r"), sg.Column(leftColumn, justification="l")])
         shortcutsLayout = [
         [sg.Text("Run in terminal")]  ]
         layout = [[LOGO], [sg.TabGroup([[sg.Tab("Control Panel", controlPanelLayout), sg.Tab("Shortcuts", shortcutsLayout), sg.Tab("Settings", settingsLayout)]])]]
@@ -874,10 +920,11 @@ if not bot.getSetting("terminal"):
         window['-TOKEN-'].Widget.config(insertbackground='white')
         sg.cprint_set_output_destination(window, OUTPUT)
         HIDE_BUTTON.update("")
+        for i in settings: window["IN"+i[0]].update(str(bot.getSetting(i[0])))
         try:
             x = OGwindow[OUTPUT].get().split("\n")
             for i in range(2): x.pop()
-            OGprint("\n".join(x))
+            print("\n".join(x))
         except Exception:
             pass
 
@@ -893,7 +940,7 @@ if not bot.getSetting("terminal"):
         HIDE_BUTTON.update("")
         x = OGwindow[OUTPUT].get().split("\n")
         for i in range(2): x.pop()
-        OGprint("\n".join(x))
+        print("\n".join(x))
 
     # Create the Window
     createLayout1()
@@ -907,26 +954,25 @@ if not bot.getSetting("terminal"):
         if event == sg.WIN_CLOSED or event == 'Cancel': # if user closes window or clicks cancel
             break
         try:
-            if event == 'Test':
-                print("hi")
-            elif event == 'Login':
+            if event == 'Login':
                 if not LOGIN_BUTTON_PRESSED:
                     threading.Thread(target=loginThread, args=(str(values['-TOKEN-']),), daemon=True).start()
                     LOGIN_BUTTON_PRESSED = True
-            elif event == 'Submit' or event == 'Ok':
+            if event == 'Submit' or event == 'Ok':
+                for i in settings: bot.updateSetting(i[0], str(values["IN"+i[0]]))
                 if inputMode:
                     submitInput = str(values["IN"])
                 else:
                     submitCommand = str(values["IN"])
                 window["IN"].update("")
-            elif event == 'BOT=T':
+            if event == 'BOT=T':
                 if BOT_BUTTON_PRESSED:
                     BOT_BUTTON.update("BOT=F")
                     BOT_BUTTON_PRESSED = False
                 else:
                     BOT_BUTTON.update("BOT=T")
                     BOT_BUTTON_PRESSED = True
-            elif event == "Hide":
+            if event == "Hide":
                 if not HIDE_BUTTON_PRESSED:
                     OGwindow = window
                     createLayout2()
@@ -937,10 +983,25 @@ if not bot.getSetting("terminal"):
                     createLayout1()
                     OGwindow.close()
                     HIDE_BUTTON_PRESSED = False
-            else:
-                pass
+            if event == "Apply":
+                for i in settings:
+                    if i[1]:
+                        bot.updateSetting(i[0], str(values["IN"+i[0]]))
+            for i in settings:
+                if event == i[0]:
+                    if i[1]:
+                        bot.updateSetting(event, "")
+                    else:
+                        if window[event].get_text() == "True":
+                            window[event].update("False")
+                            bot.updateSetting(event, False)
+                        else:
+                            window[event].update("True")
+                            bot.updateSetting(event, True)
+                    for i in settings: window["IN"+i[0]].update(str(bot.getSetting(i[0])))
         except Exception as e:
             print(str(e))
+            traceback.print_exc()
     window.close()
 else:
     if bot.getSetting("login") == False: pass
