@@ -350,7 +350,7 @@ ansi = ansi()
 
 #---Variables---
 '''Fundamental settings for the rest the code'''
-VERSION = "3.2"
+VERSION = "3.3"
 if os.path.isdir(r"C:\Users\User\Documents\Python_Coding\DiscordBot_Codes"): saveFilePath = r"C:\Users\User\Documents\Python_Coding\DiscordBot_Codes" #file where everything is saved
 else: saveFilePath = None #file where everything is saved
 BOT = True
