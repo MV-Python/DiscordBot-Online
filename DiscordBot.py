@@ -765,18 +765,19 @@ class clientCommands():
                 print(message.author.name + " > " + message.content)
     def login(self, TOKEN=None, BOT=None, fail=False):
         global t0, loading, loadLoop
+        if TOKEN != None: TOKEN = str(TOKEN).replace(" ", "")
         if self.getSetting("signin") == False:
             return
         if not self.getSetting("terminal"):
             BOT = BOT_BUTTON_PRESSED
             TOKEN = window['-TOKEN-'].get()
-        if self.getSetting("REPL") == True and TOKEN.replace(" ", "") in [None, ""]:
+        if self.getSetting("REPL") == True and TOKEN in [None, ""]:
             TOKEN = os.environ.get("TOKEN")
             BOT = os.environ.get("BOT")
-        if TOKEN.replace(" ", "") in [None, ""]:
+        if TOKEN in [None, ""]:
             TOKEN = self.getSetting("TOKEN")
             BOT = self.getSetting("BOT")
-        if TOKEN.replace(" ", "") in [None, ""]: TOKEN = input("Token   > ")
+        if TOKEN in [None, ""]: TOKEN = input("Token   > ")
         if BOT == None: BOT = input("Bot T/F > ")
         if BOT in ["false", "False", "f", "F", False]: BOT = False
         else: BOT = True
