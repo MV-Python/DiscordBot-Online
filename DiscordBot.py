@@ -852,7 +852,7 @@ async def on_ready():
 
     loop = True
     while loop == True:
-        if bot.getSetting("terminal"):
+        if bot.getSetting("terminal") and submitCommand == None:
             submitCommand = "input"
         else:
             time.sleep(1)
