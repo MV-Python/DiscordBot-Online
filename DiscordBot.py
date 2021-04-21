@@ -379,6 +379,7 @@ settings = [
     ["terminal", False],
     ["autoOutput", False],
     ["autoRunSave", False],
+    ["autoRunCommand", True],
     ["textEditor", True],
     ]
 
@@ -431,7 +432,7 @@ def findCommand(choice, classVar, get=False):
     choice = choice.replace(" ", "").replace("\t", "")
     for i in dir(classVar):
         if not i.startswith("__"):
-            for j in choice.replace("(", " ").replace(")", " ").replace(":", " ").replace(".", " ").split(" "):
+            for j in choice.replace("(", " ").replace(")", " ").replace(":", " ").replace(".", " ").replace(",", " ").split(" "):
                 if i == j:
                     if get:
                         return i
@@ -503,16 +504,17 @@ async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **k
                         text = choice.replace("(", " ").split(" ")[counter].replace(")", "").replace('''"''', "")
                         counter += 1
                         command = findCommand(text, localCommands, True)
-                        try:
-                            func = getattr(localCommands, command)
-                            execPrefix = ""
-                            if inspect.iscoroutinefunction(func):
-                                if ("await " + command) not in choice and ("await __self__." + command) not in choice:
-                                    choice = choice.replace(command, "await " + command)
-                            if ("__self__." + command) not in choice:
-                                choice = choice.replace(command, "__self__." + command)
-                        except Exception as e:
-                            pass
+                        if "async def" not in text:
+                            try:
+                                func = getattr(localCommands, command)
+                                execPrefix = ""
+                                if inspect.iscoroutinefunction(func):
+                                    if ("await " + command) not in choice and ("await __self__." + command) not in choice:
+                                        choice = choice.replace(command, "await " + command)
+                                if ("__self__." + command) not in choice:
+                                    choice = choice.replace(command, "__self__." + command)
+                            except Exception as e:
+                                pass
             if findCommand(choice, clientCommands):
                 if bot == None:
                     print("Not signed into Discord client", error)
@@ -528,8 +530,9 @@ async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **k
                             func = getattr(clientCommands, command)
                             execPrefix = ""
                             if inspect.iscoroutinefunction(func):
-                                if ("await " + command) not in choice and ("await __self__." + command) not in choice:
-                                    choice = choice.replace(command, "await " + command)
+                                if "async def" not in text:
+                                    if ("await " + command) not in choice and ("await __self__." + command) not in choice:
+                                        choice = choice.replace(command, "await " + command)
                             if ("__self__." + command) not in choice:
                                 choice = choice.replace(command, "__self__." + command)
                         except Exception as e:
@@ -542,7 +545,7 @@ async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **k
                     panelVariables.update({"choice" : choice})
                     panelVariables.update({"func" : func})
                     panelVariables.update(localVariables)
-                    if "await " + func not in choice:
+                    if "await " + func not in choice and "async def" not in choice:
                         exec("if inspect.iscoroutinefunction(" + func + "): awaitFunc = True", panelVariables)
                         if panelVariables.get("awaitFunc"):
                             choice = choice.replace(func, "await " + func)
@@ -604,8 +607,8 @@ class localCommands():
                 print("None")
             return None
         for setting in open(self._file_+"/Settings", "r").read().split("\n"):
-            if variable == setting.split("=")[0].replace(" ", "") or variable == "all":
-                value = setting.split("=")[1].replace(" ", "")
+            if variable == setting.replace(" = ", "=").split("=")[0] or variable == "all":
+                value = setting.replace(" = ", "=").split("=")[1]
                 if output == True:
                     if value == None:
                         print("None")
@@ -619,11 +622,11 @@ class localCommands():
         if output == True:
             print("None")
         return None
-    def createSave(self, saveName, code=None):
+    def createSave(self, saveName, code=None, prefix="save-"):
         if saveName.endswith(".py") or saveName.endswith(".txt"):
-            file = open(self._file_+"/save-"+saveName, "w")
+            file = open(self._file_+"/"+prefix+saveName, "w")
         else:
-            file = open(self._file_+"/save-"+saveName+".txt", "w")
+            file = open(self._file_+"/"+prefix+saveName+".txt", "w")
         if code != None:
             file.write(code)
         else:
@@ -640,14 +643,36 @@ class localCommands():
             os.system(textEditor + self._file_+"/save-"+saveName)
         else:
             os.system(textEditor + self._file_+"/save-"+saveName+".txt")
-    def cmdSave(self, saveName):
+    async def cmdSave(self, saveName, botSelf="defualt", *args, **kwargs):
+            global loop
+            counter = 0
+            func = None
+            tab = True
             print("Running File: " + saveName + "...\n")
-            if saveName.endswith(".txt"):
-                self.createSave(saveName + ".py", open(self._file_+"\save-"+saveName, "r").read())
-                os.system(self._file_+"/save-"+saveName+".py")
-                self.deleteSave(saveName + ".py")
-            if saveName.endswith(".py"):
-                os.system(self._file_+"/save-"+saveName)
+            if saveName.endswith(".py") or saveName.endswith(".txt"):
+                file = open(self._file_+"/save-"+saveName, "r")
+            else:
+                file = open(self._file_+"/save-"+saveName+".txt", "r")
+            code = file.read().split("\n")
+            if "" in code: code.remove("")
+            for line in code:
+                list = re.split("\t|    ", line)
+                if tab == True:
+                    code[counter] = "\t\t" + line
+                if "('''" in line:
+                    tab = False
+                if "''')" in line:
+                    tab = True
+                counter += 1
+            code.insert(0, "client=__self__.client")
+            code = "\n".join(code)
+            if "@client" in code or "@__self__.client" in code:
+                loop = False
+            if code == "\t\t":
+                code += "pass"
+            if botSelf == "defualt": botSelf = bot
+            self.createSave("cmdSave-" + saveName + ".py", await controlPanel(botSelf, code, returnValues=True,**kwargs), prefix="")
+            os.system(self._file_+"/cmdSave-"+saveName+".py")
     async def loadSave(self, saveName, botSelf="defualt", mod=False, *args, **kwargs):
         global loop
         counter = 0
@@ -680,8 +705,8 @@ class localCommands():
             loop = False
         if code == "\t\t":
             code += "pass"
-        if botSelf == "defualt": await controlPanel(bot, code, **kwargs)
-        else: await controlPanel(botSelf, code, **kwargs)
+        if botSelf == "defualt": botSelf = bot
+        await controlPanel(botSelf, code, **kwargs)
         if mod:
             for i in localVariables:
                 exec("mod." + i + "= localVariables.get('"+i+"')", localVariables)
@@ -715,7 +740,7 @@ class clientCommands():
                     text = text.split("\n")
                     text[0] = text[0].replace("cc:", "")
                     for line in text:
-                        await controlPanel(self, con, line)
+                        await controlPanel(self, line)
         loop = False
     async def Cprint(self, variable, printVariable=False):
         if printVariable: print(variable)
@@ -742,18 +767,16 @@ class clientCommands():
         global t0, loading, loadLoop
         if self.getSetting("signin") == False:
             return
-        if self.getSetting("REPL") == True:
+        if not self.getSetting("terminal"):
+            BOT = BOT_BUTTON_PRESSED
+            TOKEN = window['-TOKEN-'].get()
+        if self.getSetting("REPL") == True and TOKEN.replace(" ", "") in [None, ""]:
             TOKEN = os.environ.get("TOKEN")
             BOT = os.environ.get("BOT")
-        elif TOKEN == "" or TOKEN == None:
+        if TOKEN.replace(" ", "") in [None, ""]:
             TOKEN = self.getSetting("TOKEN")
             BOT = self.getSetting("BOT")
-        if not self.getSetting("terminal"):
-            if BOT == None:
-                BOT = BOT_BUTTON_PRESSED
-            if TOKEN == None:
-                TOKEN = window['-TOKEN-'].get()
-        if TOKEN == None: TOKEN = input("Token   > ")
+        if TOKEN.replace(" ", "") in [None, ""]: TOKEN = input("Token   > ")
         if BOT == None: BOT = input("Bot T/F > ")
         if BOT in ["false", "False", "f", "F", False]: BOT = False
         else: BOT = True
@@ -823,8 +846,8 @@ async def on_ready():
         await bot.loadSave(bot.getSetting("autoRunSave"))
     if bot.getSetting("autoRunSave") == True:
         await bot.loadSave("Saved_Code")
-    if bot.getSetting("autoRunCommand") not in (None, False):
-        await controlPanel(bot, bot.getSetting("autoRunCommand"))
+    if bot.getSetting("autoRunCommand") not in (None, False, "", " "):
+        submitCommand = bot.getSetting("autoRunCommand")
 
     loop = True
     while loop == True:
@@ -852,10 +875,10 @@ color('''|  |'''+"  "+'''
   \__/''', color1, bcolor1)
 color("▀▄▄▄▄▀▀▄▄▄▀▄▄▄▄▄▀▄▄▄▄▄▀▄▄▄▀▀▀▀▄▄▄▀", color2, bcolor2)
 color('''|  |'''+"      "+'''
-   |              \____________/_______/  /'''+"   "+'''
+   |   MV Katze   \____________/_______/  /'''+"   "+'''
    ^   ''', color1, bcolor1)
 color("  Viper " + VERSION, color2, bcolor1)
-color("  \ \ \ \ \ \ \________/", color1, bcolor1)
+color("  \ \ \ \ \ \ \________/"+ "\n          discord.py ver: " + discord.__version__, color1, bcolor1)
 color("  ", color1, bcolor1)
 print("\n")
 class mod():
@@ -875,9 +898,9 @@ if not bot.getSetting("terminal"):
      |  |█▄─▄▄▀█▄─▄█─▄▄▄▄█─▄▄▄─█▄─▄▄─█▄─█─▄|  |
     (o  o)█─██─██─██▄▄▄▄─█─███▀██─▄▄▄██▄─▄█|  |
      \__/▀▄▄▄▄▀▀▄▄▄▀▄▄▄▄▄▀▄▄▄▄▄▀▄▄▄▀▀▀▀▄▄▄▀|  |
-      |              \____________/_______/  /
+      |   MV Katze   \____________/_______/  /
       ^    Viper ''' + VERSION + '''   \ \ \ \ \ \ \________/ ''' + "\n discord.py ver: " + discord.__version__
-    sg.LOOK_AND_FEEL_TABLE['theme'] = {'BACKGROUND': '#3d3d3d',
+    sg.LOOK_AND_FEEL_TABLE['theme'] = {'BACKGROUND': '#2e2e2e',
                                        'TEXT': 'white',
                                        'INPUT': 'black',
                                        'SCROLL': '#e66363',
@@ -893,7 +916,7 @@ if not bot.getSetting("terminal"):
         global BOT_BUTTON, window
         BOT_BUTTON = sg.Button("BOT=T")
         HIDE_BUTTON = sg.Button("Hide", size=(size+74,1), pad=(5,0), font="Courier 5")
-        LOGO = sg.Text(logo, font=('Courier', 8), justification="center", size=(size,10), text_color='#e66363')
+        LOGO = sg.Text(logo, font=('Courier', 8), justification="center", size=(size,10), text_color='red')
         controlPanelLayout = [
                     [sg.Text('Authorization Token', font="Ariel 11", justification="center"), sg.Input(size=(size-36, 1), key='-TOKEN-'), sg.Button("Login"), BOT_BUTTON],
                     [HIDE_BUTTON],
@@ -1006,3 +1029,5 @@ if not bot.getSetting("terminal"):
 else:
     if bot.getSetting("login") == False: pass
     bot.login(TOKEN, BOT)
+
+print("End of Script")
