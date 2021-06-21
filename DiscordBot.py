@@ -377,6 +377,7 @@ settings = [
     ["TOKEN", True],
     ["BOT", False],
     ["terminal", False],
+    ["autoAwait", False],
     ["autoOutput", False],
     ["autoRunSave", False],
     ["autoRunCommand", True],
@@ -506,11 +507,12 @@ async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **k
                         command = findCommand(text, localCommands, True)
                         if "async def" not in text:
                             try:
-                                func = getattr(localCommands, command)
-                                execPrefix = ""
-                                if inspect.iscoroutinefunction(func):
-                                    if ("await " + command) not in choice and ("await __self__." + command) not in choice:
-                                        choice = choice.replace(command, "await " + command)
+                                if not bot.getSetting("autoAwait") == False:
+                                    func = getattr(localCommands, command)
+                                    execPrefix = ""
+                                    if inspect.iscoroutinefunction(func):
+                                        if ("await " + command) not in choice and ("await __self__." + command) not in choice:
+                                            choice = choice.replace(command, "await " + command)
                                 if ("__self__." + command) not in choice:
                                     choice = choice.replace(command, "__self__." + command)
                             except Exception as e:
@@ -527,12 +529,13 @@ async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **k
                         counter += 1
                         command = findCommand(text, clientCommands, True)
                         try:
-                            func = getattr(clientCommands, command)
-                            execPrefix = ""
-                            if inspect.iscoroutinefunction(func):
-                                if "async def" not in text:
-                                    if ("await " + command) not in choice and ("await __self__." + command) not in choice:
-                                        choice = choice.replace(command, "await " + command)
+                            if not bot.getSetting("autoAwait") == False:
+                                func = getattr(clientCommands, command)
+                                execPrefix = ""
+                                if inspect.iscoroutinefunction(func):
+                                    if "async def" not in text:
+                                        if ("await " + command) not in choice and ("await __self__." + command) not in choice:
+                                            choice = choice.replace(command, "await " + command)
                             if ("__self__." + command) not in choice:
                                 choice = choice.replace(command, "__self__." + command)
                         except Exception as e:
@@ -545,11 +548,12 @@ async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **k
                     panelVariables.update({"choice" : choice})
                     panelVariables.update({"func" : func})
                     panelVariables.update(localVariables)
-                    if "await " + func not in choice and "async def" not in choice:
-                        exec("if inspect.iscoroutinefunction(" + func + "): awaitFunc = True", panelVariables)
-                        if panelVariables.get("awaitFunc"):
-                            choice = choice.replace(func, "await " + func)
-                            panelVariables.update({"awaitFunc" : False})
+                    if not bot.getSetting("autoAwait") == False:
+                        if "await " + func not in choice and "async def" not in choice:
+                            exec("if inspect.iscoroutinefunction(" + func + "): awaitFunc = True", panelVariables)
+                            if panelVariables.get("awaitFunc"):
+                                choice = choice.replace(func, "await " + func)
+                                panelVariables.update({"awaitFunc" : False})
                 except Exception as e:
                     pass
             finalList.append(choice)
@@ -557,6 +561,7 @@ async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **k
     if choice not in ["", " ", "\n"]:
         try:
             code = "async def mainCode(__self__):\n\ttry:\n\t\t" + choice + "\n\texcept Exception as e:\n\t\tprint('ERROR: ' + str(e), local.error)\n\t\ttraceback.print_exc()\n\tlocalVariables.update(locals())"
+            bot.createSave("LastSave", code)
             if bot.getSetting("autoOutput"):
                 print(code)
             if returnValue:
@@ -571,6 +576,8 @@ async def controlPanel(bot=None, inputVar="input", returnValue=False, *args, **k
         print("_________________________________________________________________________________________________", greyText)
     else:
         print("------------", greyText)
+async def convertCode(bot=None, inputVar="input", returnValue=True, *args, **kwargs):
+    await controlPanel(bot, inputVar, returnValue, *args, **kwargs)
 def color(text, foregroundRGBcolor=[255,255,255], backgroundRGBcolor=[0,0,0]):
     if not bot.getSetting("terminal"):
         if isinstance(foregroundRGBcolor, str):
@@ -726,8 +733,10 @@ class clientCommands():
     def __init__(self, client, filePath=None):
         self.client = client
         if filePath == None:
-            filePath = saveFilePath
-        self.con = localCommands(filePath)
+            self.filePath = saveFilePath
+        else:
+            self.filePath = filePath
+        self.con = localCommands(self.filePath)
         for i in dir(self.con):
             exec('''if not i.startswith("__"): self.'''+ i + '''= self.con.''' + i)
     async def commandCenter(self, prefix = "cc:"):
@@ -748,10 +757,10 @@ class clientCommands():
             await self.sendMessage(535550762655285271, variable)
         except:
             pass
-    async def sendMessage(self, channelID, message):
+    async def sendMessage(self, channelID, message, *args, **kwargs):
         channel = self.client.get_channel(int(channelID))
         try:
-            await channel.send(message)
+            await channel.send(message, *args, **kwargs)
         except:
             pass
         if self.getSetting("autoOutput") == True:
@@ -847,7 +856,7 @@ async def on_ready():
         await bot.loadSave(bot.getSetting("autoRunSave"))
     if bot.getSetting("autoRunSave") == True:
         await bot.loadSave("Saved_Code")
-    if bot.getSetting("autoRunCommand") not in (None, False, "", " "):
+    if bot.getSetting("autoRunCommand") not in (None, False, "", " ", "None"):
         submitCommand = bot.getSetting("autoRunCommand")
 
     loop = True
